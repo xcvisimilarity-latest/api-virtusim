@@ -1,23 +1,16 @@
-// api/balance.js - Vercel Serverless Function
-import fetch from 'node-fetch';
-
-// In-memory cache (for demo, use Redis in production)
-const cache = new Map();
-
+// api/balance.js - Fixed for Vercel
 export default async function handler(req, res) {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Credentials', true);
+    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    // Handle OPTIONS request
+    // Handle OPTIONS
     if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+        return res.status(200).end();
     }
     
-    // Only allow GET
+    // Only GET allowed
     if (req.method !== 'GET') {
         return res.status(405).json({
             success: false,
@@ -25,88 +18,70 @@ export default async function handler(req, res) {
         });
     }
     
-    // Get API key from query parameter
+    // Get API key
     const { apikey } = req.query;
     
     if (!apikey) {
         return res.status(400).json({
             success: false,
-            error: 'Missing apikey parameter. Example: /api/balance?apikey=YOUR_KEY'
+            error: 'Missing apikey parameter',
+            example: 'https://your-domain.vercel.app/api/balance?apikey=YOUR_KEY'
         });
     }
     
-    // Check cache first (30 second TTL)
-    const cacheKey = `balance_${apikey}`;
-    const cached = cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < 30000) {
-        console.log('Cache hit for:', cacheKey);
-        return res.status(200).json({
-            ...cached.data,
-            cached: true,
-            cached_at: new Date(cached.timestamp).toISOString(),
-            gateway: 'virtusim-gateway'
-        });
-    }
+    console.log(`🔍 Request for API key: ${apikey.substring(0, 8)}...`);
     
     try {
-        // Forward request to Virtusim
+        // Build Virtusim URL
+        const virtusimUrl = `https://virtusim.com/api/v2/json.php?api_key=${apikey}&action=balance`;
+        console.log(`📡 Forwarding to: ${virtusimUrl.substring(0, 80)}...`);
+        
         const startTime = Date.now();
         
-        const virtusimUrl = `https://virtusim.com/api/v2/json.php?api_key=${apikey}&action=balance`;
-        
+        // Vercel has built-in fetch, no need for node-fetch
         const response = await fetch(virtusimUrl, {
-            method: 'GET',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'application/json',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Origin': 'https://virtusim.com',
                 'Referer': 'https://virtusim.com/'
-            },
-            timeout: 10000
+            }
         });
         
         const responseTime = Date.now() - startTime;
         
+        console.log(`📊 Response status: ${response.status}`);
+        
         if (!response.ok) {
-            throw new Error(`Virtusim API returned ${response.status}: ${response.statusText}`);
+            throw new Error(`Virtusim returned ${response.status}: ${response.statusText}`);
         }
         
         const data = await response.json();
-        
-        // Cache the response
-        cache.set(cacheKey, {
-            data: data,
-            timestamp: Date.now()
-        });
-        
-        // Clean cache if too big
-        if (cache.size > 100) {
-            const firstKey = cache.keys().next().value;
-            cache.delete(firstKey);
-        }
+        console.log(`✅ Success: ${JSON.stringify(data).substring(0, 100)}...`);
         
         // Return formatted response
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             ...data,
             gateway: {
                 name: 'virtusim-gateway',
                 version: '1.0.0',
                 response_time: responseTime,
-                cached: false
+                server: 'Vercel Edge',
+                timestamp: new Date().toISOString()
             }
         });
         
     } catch (error) {
-        console.error('Proxy error:', error.message);
+        console.error('❌ Proxy error:', error.message);
         
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: error.message,
             details: 'Failed to fetch from Virtusim API',
-            gateway: 'virtusim-gateway'
+            gateway: 'virtusim-gateway',
+            timestamp: new Date().toISOString()
         });
     }
 }
