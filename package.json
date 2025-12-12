@@ -1,0 +1,17 @@
+{
+  "name": "virtusim-gateway",
+  "version": "1.0.0",
+  "description": "Virtusim API Gateway Proxy",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
